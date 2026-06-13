@@ -1,0 +1,146 @@
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = 0
+
+#	TODO:
+#		- make sure generated events have 'time', 'angle', and 'type'
+
+##### init #####
+[[patches]]
+[patches.module]
+source = "customEvents.lua"
+before = "main.lua"
+name = "customEvents"
+
+##### load custom events #####
+[[patches]]
+[patches.pattern]
+target = "obj/GameManager.lua"
+pattern = "Event = {}"
+position = "after"
+payload = "Event.convertToVanilla = {}"
+match_indent = true
+times = 1
+
+[[patches]]
+[patches.pattern]
+target = "obj/GameManager.lua"
+pattern = "findFiles('levelformat/events')"
+position = "after"
+payload = "customEvents = require('customEvents'); customEvents:init(); customEvents:loadEvents(eList)"
+match_indent = true
+times = 1
+
+[[patches]]
+[patches.pattern]
+target = "obj/GameManager.lua"
+pattern = "for i,v in ipairs(eList) do"
+position = "after"
+payload = '''
+	local conf = nil
+	if type(v) == "table" then
+		conf = v
+		v = conf.source
+	end
+'''
+match_indent = true
+times = 1
+
+[[patches]]
+[patches.pattern]
+target = "obj/GameManager.lua"
+pattern = "local eType = ''"
+position = "after"
+payload = '''
+if conf then
+	info.modded = true
+	info.modName = conf.modName
+	info.modId = conf.modId
+	editorDraw = editorDraw or conf.icon
+end
+'''
+match_indent = true
+times = 1
+
+
+###### unpack custom events before saving #####
+[[patches]]
+[patches.pattern]
+target = "obj/LevelManager.lua"
+pattern = "function LevelManager:saveLevel(level, filename, saveBothFiles, variant)"
+position = "after"
+payload = "local oldLevelEvents = level.events; level.events = customEvents.unpack(oldLevelEvents, variant)"
+match_indent = true
+times = 1
+
+[[patches]]
+[patches.pattern]
+target = "obj/LevelManager.lua"
+pattern = "return upgraded"
+position = "before"
+payload = "level.events = oldLevelEvents"
+match_indent = true
+times = 1
+
+
+
+###### pack into custom events when loading into the editor #####
+[[patches]]
+[patches.pattern]
+target = "obj/LevelManager.lua"
+pattern = "if project.strictLoading then"
+position = "before"
+payload = "if cs.name == 'Editor' then level.events = customEvents.pack(level.events, variant) end"
+match_indent = true
+times = 1
+
+
+###### add custom events to editor pallete #####
+[[patches]]
+[patches.pattern]
+target = "states/Editor.lua"
+pattern = "self.eventPalette = palette"
+position = "before"
+payload = "customEvents:updateEventPalette(palette)"
+match_indent = true
+times = 1
+
+
+###### unpack custom events on play ######
+[[patches]]
+[patches.pattern]
+target = "obj/GameManager.lua"
+pattern = "function GameManager:resetLevel()"
+position = "after"
+payload = "local levelEvents = customEvents.unpack(cs.level.events, cs.variant)"
+match_indent = true
+times = 1
+
+[[patches]] # TODO: this patch feels hacky, is there any better way to do this?
+[patches.pattern]
+target = "obj/GameManager.lua"
+pattern = "for i,v in ipairs(cs.level.events) do"
+position = "at"
+payload = "for i,v in ipairs(levelEvents) do"
+match_indent = true
+
+
+##### don't allow editing when missing modded events #####
+[[patches]]
+[patches.pattern]
+target = "states/Editor.lua"
+pattern = "self.errorDialogue = false"
+position = "after"
+payload = "if self.errorExit then self.doQuit = true end"
+match_indent = true
+
+# + disable saving when an error is shown
+[[patches]]
+[patches.pattern]
+target = "obj/LevelManager.lua"
+pattern = "function LevelManager:saveLevel(level, filename, saveBothFiles, variant)"
+position = "after"
+payload = "if cs.errorExit then return end"
+match_indent = true
+times = 1

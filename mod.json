@@ -1,0 +1,8 @@
+{
+    "id": "custom-events-api",
+    "name": "Custom Events API",
+    "author": "redsti",
+    "description": "Mod API for adding custom events",
+    "version": "1.0.0",
+    "config": []
+}
